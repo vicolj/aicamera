@@ -1,5 +1,5 @@
 param(
-    [string]$RepoName = "aicamera",
+    [string]$RepoName = "edger-rec",
     [switch]$Private,
     [switch]$SkipCreateRepo
 )

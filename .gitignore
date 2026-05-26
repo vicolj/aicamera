@@ -1,10 +1,17 @@
-# OS / editor
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
+# Build artifacts
+build/
+out/
+cmake-build-*/
+
+# IDE
 .idea/
 .vscode/
+*.user
+CMakeLists.txt.user
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Env & secrets
 .env
@@ -12,18 +19,29 @@ Thumbs.db
 !.env.example
 *.pem
 *.key
-credentials.json
+license.key
 
-# Build / deps
-node_modules/
-dist/
-build/
-__pycache__/
-*.pyc
-.venv/
-venv/
-
-# Logs & temp
+# Logs & runtime
 *.log
 tmp/
 temp/
+/var/
+
+# Recordings (dev)
+recordings/
+*.mp4
+*.ts
+
+# Cross compile
+toolchain/
+sysroot/
+
+# Qt
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# Python venv (if tools added later)
+.venv/
+venv/
+__pycache__/

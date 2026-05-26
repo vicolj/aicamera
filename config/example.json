@@ -1,0 +1,26 @@
+{
+  "app": {
+    "record_root": "/var/lib/edger-rec/recordings",
+    "retention_days": 7,
+    "max_channels": 4
+  },
+  "channels": [
+    {
+      "id": 0,
+      "name": "cam-1",
+      "rtsp_url": "rtsp://127.0.0.1:8554/live",
+      "enabled": true
+    }
+  ],
+  "alert": {
+    "webhook_url": "http://127.0.0.1:8080/hook",
+    "cooldown_sec": 10
+  },
+  "ai": {
+    "intrusion": {
+      "enabled": true,
+      "channel_id": 0,
+      "polygon": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]]
+    }
+  }
+}

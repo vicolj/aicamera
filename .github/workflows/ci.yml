@@ -7,11 +7,22 @@ on:
     branches: [main, master]
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
+  build-x86:
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Repository sanity check
+
+      - name: Install dependencies
         run: |
-          echo "Branch: ${GITHUB_REF_NAME}"
-          git status --short
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake pkg-config \
+            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
+
+      - name: Configure and build
+        run: |
+          ./scripts/build-x86.sh
+
+      - name: Run demo help
+        run: |
+          ./build/x86/bin/edger-rec-demo --help
