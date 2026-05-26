@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EdgeRec Alert 回放</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; background: #111; color: #eee; }
+    input, button, select { margin: 4px; padding: 8px; }
+    #login, #browser { max-width: 960px; }
+    #list { list-style: none; padding: 0; }
+    #list li { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; }
+    #list li:hover { background: #222; }
+    video { width: 100%; max-width: 960px; margin-top: 16px; background: #000; }
+    .hidden { display: none; }
+    .row { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>EdgeRec Alert Web 回放</h1>
+
+  <div id="login">
+    <div class="row">
+      <label>访问 Token</label>
+      <input id="token" type="password" placeholder="config.web.auth_token" />
+      <button id="loginBtn">登录</button>
+    </div>
+    <p id="loginMsg"></p>
+  </div>
+
+  <div id="browser" class="hidden">
+    <div class="row">
+      <label>通道</label>
+      <input id="channelId" type="number" min="0" placeholder="全部" />
+      <label>日期 YYYYMMDD</label>
+      <input id="date" type="text" placeholder="20250526" />
+      <button id="searchBtn">查询</button>
+    </div>
+    <ul id="list"></ul>
+    <video id="player" controls></video>
+  </div>
+
+  <script>
+    const loginEl = document.getElementById('login');
+    const browserEl = document.getElementById('browser');
+    const loginMsg = document.getElementById('loginMsg');
+    const listEl = document.getElementById('list');
+    const player = document.getElementById('player');
+
+    async function login() {
+      const token = document.getElementById('token').value.trim();
+      const res = await     fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        loginMsg.textContent = data.error || '登录失败';
+        return;
+      }
+      sessionStorage.setItem('edger_token', token);
+      loginEl.classList.add('hidden');
+      browserEl.classList.remove('hidden');
+      search();
+    }
+
+    async function search() {
+      const params = new URLSearchParams();
+      const channelId = document.getElementById('channelId').value.trim();
+      const date = document.getElementById('date').value.trim();
+      if (channelId !== '') params.set('channel_id', channelId);
+      if (date !== '') params.set('date', date);
+
+      const headers = {};
+      const token = sessionStorage.getItem('edger_token');
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const res = await fetch('/api/recordings?' + params.toString(), {
+        headers,
+        credentials: 'include'
+      });
+      const data = await res.json();
+      listEl.innerHTML = '';
+      if (!res.ok || !data.ok) {
+        listEl.innerHTML = '<li>查询失败</li>';
+        return;
+      }
+      for (const entry of data.entries) {
+        const li = document.createElement('li');
+        li.textContent = `[${entry.channel_id}] ${entry.channel_name} ${entry.date} ${entry.created_at_unix}`;
+        li.onclick = () => {
+          player.src = entry.play_url;
+          player.load();
+          player.play();
+        };
+        listEl.appendChild(li);
+      }
+    }
+
+    document.getElementById('loginBtn').onclick = login;
+    document.getElementById('searchBtn').onclick = search;
+  </script>
+</body>
+</html>

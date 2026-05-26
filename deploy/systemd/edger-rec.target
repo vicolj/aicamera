@@ -1,0 +1,9 @@
+[Unit]
+Description=EdgeRec Alert stack (record + AI + web)
+Documentation=https://github.com/vicolj/edger-rec
+After=network-online.target
+Wants=network-online.target
+Wants=edger-record.service edger-ai.service edger-web.service
+
+[Install]
+WantedBy=multi-user.target
