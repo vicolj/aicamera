@@ -11,4 +11,7 @@ cmake -S "${ROOT}/firmware" -B "${BUILD_DIR}" \
 
 cmake --build "${BUILD_DIR}" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
+cd "${BUILD_DIR}"
+ctest --output-on-failure
+
 echo "Build OK: ${BUILD_DIR}/bin/edger-rec-demo"

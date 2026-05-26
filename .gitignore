@@ -29,6 +29,7 @@ temp/
 
 # Recordings (dev)
 recordings/
+recordings-test/
 *.mp4
 *.ts
 

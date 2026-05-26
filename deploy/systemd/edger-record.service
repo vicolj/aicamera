@@ -1,0 +1,15 @@
+[Unit]
+Description=EdgeRec Alert recording service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=EDGER_CONFIG=/etc/edger-rec/config.json
+ExecStart=/usr/local/bin/edger-record-svc --config ${EDGER_CONFIG}
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

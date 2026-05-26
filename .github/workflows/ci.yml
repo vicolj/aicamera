@@ -19,10 +19,12 @@ jobs:
             build-essential cmake pkg-config \
             libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
 
-      - name: Configure and build
+      - name: Configure, build and test
         run: |
           ./scripts/build-x86.sh
 
-      - name: Run demo help
+      - name: Week2 integration test
         run: |
-          ./build/x86/bin/edger-rec-demo --help
+          sudo apt-get install -y ffmpeg python3
+          chmod +x scripts/test-week2-integration.sh
+          ./scripts/test-week2-integration.sh

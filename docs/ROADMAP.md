@@ -10,23 +10,40 @@
 
 ## Week 1 — 媒体链路
 
-- [ ] x86：`media-svc` RTSP 拉流（FFmpeg）
-- [ ] 单路硬录/软录 MP4 分段
-- [ ] `edger-core` 配置读写 JSON
-- [ ] CMake 工程可编译
+- [x] x86：`media-svc` RTSP 探测（FFmpeg）
+- [x] 单路 RTSP remux 录 MP4 分段
+- [x] `edger-core` 配置读写 JSON
+- [x] CMake 工程可编译
 
-**产出**：`./media-svc --config config.json` 录 1 路 1 小时
+**测试**：`Week1Config.*`（随 `./scripts/build-x86.sh` 运行）
+
+**产出**：`edger-rec-demo record` 单路录播
 
 ---
 
 ## Week 2 — 多路录播
 
-- [ ] 4 路并发拉流
-- [ ] `record-svc` 独立进程 + 循环删除
-- [ ] 录像索引（通道/日期/文件名）
-- [ ] systemd unit 模板
+- [x] 4 路并发拉流
+- [x] `record-svc` 独立进程 + 循环删除
+- [x] 录像索引（通道/日期/文件名）
+- [x] systemd unit 模板
 
-**产出**：4 路 24h  soak test（x86）
+**测试**：`./scripts/test-all.sh` + `./scripts/test-week2-integration.sh`
+
+## 测试
+
+```bash
+# 单元测试（Week1 + Week2，构建时自动跑）
+./scripts/build-x86.sh
+
+# 仅单元测试
+./scripts/test-all.sh
+
+# Week2 集成测试（4 路并发录播 + 索引）
+./scripts/test-week2-integration.sh
+```
+
+**产出**：4 路短时并发录播 + 索引 + retention 单测通过
 
 ---
 

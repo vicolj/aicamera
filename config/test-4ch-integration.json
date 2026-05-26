@@ -1,0 +1,16 @@
+{
+  "app": {
+    "record_root": "./recordings-test/integration",
+    "retention_days": 7,
+    "max_channels": 4,
+    "segment_sec": 300
+  },
+  "channels": [
+    {"id": 0, "name": "cam-1", "rtsp_url": "rtsp://127.0.0.1:8554/live", "enabled": true},
+    {"id": 1, "name": "cam-2", "rtsp_url": "rtsp://127.0.0.1:8554/live", "enabled": true},
+    {"id": 2, "name": "cam-3", "rtsp_url": "rtsp://127.0.0.1:8554/live", "enabled": true},
+    {"id": 3, "name": "cam-4", "rtsp_url": "rtsp://127.0.0.1:8554/live", "enabled": true}
+  ],
+  "alert": {"webhook_url": "http://127.0.0.1:8080/hook", "cooldown_sec": 10},
+  "ai": {"intrusion": {"enabled": false, "channel_id": 0, "polygon": []}}
+}
