@@ -3,7 +3,7 @@
   "hooks": {
     "stop": [
       {
-        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .cursor/hooks/auto-git.ps1"
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .cursor/hooks/auto-git.ps1 -Push"
       }
     ]
   }
