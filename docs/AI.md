@@ -1,116 +1,138 @@
 # AI 模型与数据管线
 
-> 婴儿看护专用 AI 设计 · 边缘部署目标：RV1106 NPU (INT8)
+> v0.2 · 对齐海马爸比 AI 能力 · 部署：君正 MAGIK (T31/T41) / Core ML (iPhone 原型)
 
-## 1. 模型清单
+## 1. 模型清单（对齐竞品功能）
 
-| 模型 | 输入 | 输出 | 框架 | 推理间隔 |
-|------|------|------|------|----------|
-| baby_detector | 640×640 RGB | bbox + class | YOLOv5n-RKNN | 200ms |
-| face_cover | 224×224 ROI | covered/normal | MobileNetV3 | 200ms |
-| pose_lite | 192×192 ROI | 17 keypoints | PP-PicoDet | 500ms |
-| cry_classifier | 1s audio @16kHz | cry/noise/silence | CRNN | 1s |
-| motion_scorer | 帧差 mask | motion score | 传统 CV | 100ms |
+| 模型 | 功能 | 对标海马爸比 | 部署 |
+|------|------|--------------|------|
+| baby_detector | 婴儿/人形检测 | 人脸+人形精确检测 | NPU |
+| face_cover | 遮脸/蒙头 | AI 遮脸提醒 | NPU |
+| **prone_pose** | 趴睡/侧角>70° | 危险睡眠行为 | NPU |
+| **breath_sleep** | 浅睡/深睡/呼吸感知 | 呼吸感知算法 | NPU+时序 |
+| cry_classifier | 哭声识别 ≥95% | 哭声检测 | CPU/DSP |
+| zone_guard | 虚拟围栏 | AI 虚拟围栏 | CPU |
+| motion_track | 人形追踪框 | Pro 云台追踪 | NPU |
+| highlight_picker | 精彩瞬间选帧 | 时光相册 | CPU |
 
-## 2. 各模型说明
+---
 
-### 2.1 baby_detector
+## 2. 核心模型说明
 
-- **目的**：定位婴儿/人体框，供后续 ROI 分析
-- **训练数据**：COCO person + 自采婴儿床数据 5000+ 张
-- **指标**：mAP@0.5 ≥ 0.85（婴儿床场景）
-- **RKNN 转换**：rknn-toolkit2，INT8 量化（校准集 200 张）
+### 2.1 face_cover（遮脸）
 
-### 2.2 face_cover（遮脸检测，最高优先级）
+- 连续 **3 帧**（~600ms）触发，对齐竞品响应
+- 红外夜视样本 ≥ 40% 训练集
+- 指标：Recall ≥ **95%**
 
-- **目的**：检测口鼻是否被织物遮挡
-- **输入**：从 baby_detector ROI 裁剪并放大
-- **训练数据**：
-  - 正样本：婴儿正常露脸
-  - 负样本：被子遮脸、侧睡压脸、枕头遮挡
-  - 目标 3000+ 张，含不同光照/红外
-- **指标**：Recall ≥ 95%，Precision ≥ 90%
-- **误报控制**：连续 3 帧（600ms）才触发
-
-### 2.3 cry_classifier（哭声检测）
-
-- **目的**：区分婴儿哭声 vs 环境噪声 vs 静音
-- **输入**：16kHz mono，1 秒滑动窗口，0.5 秒 hop
-- **训练数据**：
-  - 开源：ESC-50、AudioSet baby cry 子集
-  - 自采：家庭录音（需授权）+ 数据增强
-- **指标**：F1 ≥ 0.88；夜间误报 ≤ 3 次
-- **注意**：不对「哭声原因」分类（饥饿/尿布）— 避免过度承诺
-
-### 2.4 运动/睡眠启发式
-
-非深度学习为主，结合检测框：
+### 2.2 prone_pose（趴睡 — v0.2 新增 P0）
 
 ```
-motion_score = α × bbox位移 + β × 帧差面积
-sleep_state  = motion_score < 阈值 持续 5min →  asleep
-wake         = motion_score > 阈值 持续 30s → awake
+输入：baby_detector ROI
+输出：
+  - prone: 趴睡概率
+  - roll_angle: 躯干侧角（度）
+规则：
+  IF prone > 0.8 OR roll_angle > 70° 持续 3s → EVENT_PRONE
 ```
 
-## 3. 推理调度
+- 对标：海马爸比「侧身角度大于 70 度自动推送预警」
+- 数据：趴睡/侧睡/仰睡各 2000+ 张
+
+### 2.3 breath_sleep（呼吸感知 — v0.2 新增 P0）
+
+**非毫米波、非医疗级**，与海马爸比同款视觉路线：
 
 ```
-时间轴 ─────────────────────────────────────────►
-
-Video:  |--detect--|--detect--|--detect--|--detect--|  (5fps 分析)
-        |  face   |          |  face   |          |  (2.5fps ROI)
-Audio:  |----cry----|----cry----|----cry----|       (1fps)
-
-NPU 队列优先级: face_cover > baby_detector > pose_lite
+输入：胸口 ROI 视频序列 (15s @ 5fps)
+特征：光流微动 + 周期性 FFT (0.2–0.5Hz)
+输出：
+  - breath_rate: 估算呼吸频率
+  - sleep_stage: awake / light / deep
 ```
 
-**CPU 满载降级策略**
-
-1. 关闭 pose_lite
-2. 检测帧率 5fps → 2fps
-3. 仅保留 cry + face_cover
-
-## 4. 数据闭环
-
-```
-设备告警 ──► 用户反馈(误报/漏报) ──► 数据湖
-                                        │
-标注平台 ◄──────────────────────────────┘
-    │
-    ▼
-模型重训 ──► RKNN 转换 ──► OTA 灰度发布
-```
-
-| 环节 | 工具 |
+| 阶段 | 判定 |
 |------|------|
-| 标注 | Label Studio |
-| 训练 | PyTorch + Ultralytics (YOLO) |
-| 转换 | rknn-toolkit2 |
-| 版本 | MLflow / 简单 Git LFS |
+| 浅睡 | 微动低 + 呼吸规律 |
+| 深睡 | 微动极低 + 呼吸稳定 |
+| 醒 | 大幅运动或睁眼（可选 eye 子模型） |
 
-## 5. 隐私与伦理
+- 生成 **睡眠报告**：总时长、浅/深睡占比、醒次
+- 指标：与人工记录偏差 < 15min/天
 
-- 训练数据全部脱敏，不含可识别人脸身份
-- 设备端推理，原始视频不上传
-- 用户可选择「贡献误报样本」帮助改进（默认关闭）
-- 不输出医疗诊断结论（如「呼吸暂停」需 V2 雷达 + 认证）
+### 2.4 cry_classifier + 智能安抚
 
-## 6. 开发阶段模型策略
+```
+IF cry_confidence > 0.75 持续 2s:
+  1. EVENT_CRY → 推送
+  2. 触发 soothing-svc 播放预设曲目（本地 MP3）
+  3. 家长 App 可远程 stop
+```
 
-| 阶段 | 策略 |
+- 准确率目标 ≥ **95%**（对齐竞品宣传口径）
+- 不对哭声原因做 NLP 分类
+
+### 2.5 motion_track（Pro 云台）
+
+```
+检测框中心 (cx, cy) → PID → 步进电机 pan/tilt
+目标：婴儿始终在画面中心 ±15%
+```
+
+---
+
+## 3. 三看护模式 · 模型组合
+
+| 模式 | 启用模型 | 关闭 |
+|------|----------|------|
+| **睡眠看护** | face_cover, prone_pose, breath_sleep, cry | zone_guard |
+| **客厅看护** | baby_detector, zone_guard, motion | breath_sleep |
+| **分床看护** | breath_sleep, cry, baby_detector | zone_guard |
+
+---
+
+## 4. 推理调度（T41）
+
+```
+Video 5fps:  detect → face_cover / prone (交替)
+Video 1fps:  breath_sleep (15s 窗口滑动)
+Audio 1fps:  cry_classifier
+Pro 5fps:    motion_track → PTZ PID
+```
+
+**降级顺序**：highlight → breath → prone → 降帧率
+
+---
+
+## 5. 训练与部署路径
+
+| 阶段 | 平台 | 格式 |
+|------|------|------|
+| 训练 | PyTorch | .pt |
+| iPhone 验证 | Core ML | .mlmodel |
+| 量产 | 君正 MAGIK | .bin |
+
+**iPhone 12 与 T41 共用同一套训练权重结构**，仅转换工具不同 — 加速「尽量像海马爸比」的功能对齐。
+
+---
+
+## 6. 隐私
+
+- 训练数据脱敏；**设备端推理，永不上传原始 AV**
+- 用户反馈误报：默认仅上传 **事件类型+置信度统计**（可选 opt-in），不上传视频
+
+---
+
+## 7. 基准测试（对齐竞品场景）
+
+| 场景 | 标准 |
 |------|------|
-| 原型 (Pi) | PyTorch + ONNX Runtime，CPU 推理 |
-| Alpha | RKNN INT8，单模型验证 |
-| Beta | 全 pipeline + 事件融合 |
-| 量产 | 量化校准 + 72h 压力测试 |
-
-## 7. 基准测试场景
-
-| 场景 | 通过标准 |
-|------|----------|
-| 正常睡觉 | 零遮脸告警 |
-| 踢被子露脸 | 不告警 |
-| 被子遮口鼻 | 3s 内告警 |
-| 播放电视声 | 零哭声明警 |
-| 真实哭声 | 2s 内告警 |
-| 红外夜视 | 与白天指标偏差 < 5% |
+| 蒙头遮脸 | 3s 内告警 |
+| 趴睡/侧角>70° | 3s 内告警 |
+| 正常仰睡 | 零告警 |
+| 电视声 | 零哭声明警 |
+| 真实哭声 | 2s 内告警 + 安抚播放 |
+| 越界 | 2s 内告警 |
+| 睡眠报告 | 与人工偏差 < 15min |
+| 940nm 夜视 | 指标下降 < 5% |
+| **抓包** | 零视频 bytes 到公网 IP |

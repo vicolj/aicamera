@@ -1,253 +1,245 @@
 # 软件架构设计
 
-> 对应 PRD v0.1 · 原则：**边缘优先、事件驱动、隐私默认本地**
+> 对应 PRD v0.2 · 原则：**全本地 AI、零云存、P2P 直连**（对齐海马爸比）
 
 ## 1. 系统分层
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      移动端 App (Flutter)                     │
-│   实时预览 │ 告警 │ 时间线 │ 配网 │ 安全区 │ 家庭成员          │
+│                   移动端 App (Flutter)                        │
+│  实时预览 │ 睡眠报告 │ 虚拟围栏 │ 打码 │ 三模式 │ 1+5 账号      │
 └───────────────────────────┬─────────────────────────────────┘
-                            │ HTTPS / WebRTC / MQTT
+                            │ P2P 视频 + 本地信令（无视频上云）
 ┌───────────────────────────▼─────────────────────────────────┐
-│                      云服务 (可选)                            │
-│   认证 │ 设备注册 │ 推送(FCM/APNs) │ 信令 │ 事件元数据         │
-│   对象存储(OSS) ← 仅事件片段，非全量流                          │
+│              轻量信令服务（可选，仅元数据）                     │
+│   账号绑定 │ APNs/FCM 推送 │ P2P 打洞协调 │ OTA 元数据         │
+│   ⚠️ 不存储、不转发任何视频流                                 │
 └───────────────────────────┬─────────────────────────────────┘
-                            │ MQTT over TLS
+                            │ 仅 JSON 信令
 ┌───────────────────────────▼─────────────────────────────────┐
-│                    设备端 (Linux / Buildroot)                 │
+│              设备端 (Linux / 君正 ISVP SDK)                   │
 │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐            │
-│ │  media-svc  │ │   ai-svc    │ │  cloud-svc  │            │
-│ │ RTSP/WebRTC │ │ 推理+事件   │ │ MQTT/OTA    │            │
+│ │  media-svc  │ │   ai-svc    │ │ connect-svc │            │
+│ │ H.265/SD卡  │ │ 全本地推理   │ │ P2P/BLE/OTA │            │
 │ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘            │
 │        └───────────────┼───────────────┘                    │
-│                   device-core (配置/状态机/看门狗)             │
+│              babycam-core（看护模式状态机）                    │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ HAL: camera │ mic │ speaker │ gpio │ wifi │ sd │ ble   │ │
+│ │ HAL: cam │ mic │ spk │ ptz │ sht30 │ sd │ wifi │ ble  │ │
 │ └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 2. 技术栈选型
+**与 v0.1 的关键变更**
 
-| 层级 | 技术 | 理由 |
-|------|------|------|
-| 设备 OS | Buildroot + Linux 5.10 | RV1106 官方支持，IPC 成熟 |
-| 设备语言 | C++17（核心）+ Python（AI 原型） | 性能 + 迭代速度 |
-| 视频 | Rockchip MPP + RTSP/WebRTC | 硬件编码低延迟 |
-| AI 推理 | RKNN Runtime | RV1106 NPU 原生 |
-| 音频 | ALSA + WebRTC AEC | 标准栈 |
-| 消息 | Mosquitto client / MQTT | IoT 轻量 |
-| App | **Flutter 3** | iOS/Android 一套代码 |
-| 后端 | Go + Gin | 高并发信令/API |
-| DB | PostgreSQL + Redis | 关系数据 + 会话 |
-| 存储 | 阿里云 OSS / MinIO | 事件片段 |
-| 推送 | APNs + 厂商通道 | 国内 Android 到达率 |
+| v0.1 | v0.2（对齐海马爸比） |
+|------|---------------------|
+| 云端 OSS 存片段 | **删除**，视频不出设备 |
+| WebRTC + TURN 中继 | **P2P 优先**，TURN 仅打洞失败时且仍不存视频 |
+| cloud-svc + MQTT 事件 | connect-svc，仅信令与推送 |
+| RV1106 + RKNN | **T41/T31 + 君正 MAGIK 推理** |
 
-## 3. 设备端服务设计
+---
 
-### 3.1 media-svc（媒体服务）
+## 2. 技术栈
 
-**职责**：采集、编码、分发、本地录像
+| 层级 | 技术 |
+|------|------|
+| 设备 OS | Linux 4.4/5.x + **君正 ISVP SDK** |
+| 设备语言 | C++17 |
+| 视频 | 君正 IMP 框架 + H.264/H.265 硬件编码 |
+| AI | **君正 MAGIK** / ONNX → 平台转换 |
+| 存储 | SD 卡 MP4 分段循环，FAT32 |
+| 连接 | **P2P（libp2p/自研 UDP 打洞）** + BLE 配网 |
+| App | Flutter 3 |
+| 信令 | 轻量 Go 服务（仅账号/推送/打洞，**无媒体**） |
+| 推送 | APNs + 厂商通道（仅 JSON：事件类型+时间戳） |
 
-```
-Camera ISP → VI → VENC(H.265) ──┬──► RTSP (LAN)
-                                ├──► WebRTC (P2P/中继)
-                                └──► SD 循环录像 (mp4 segment)
-```
+---
 
-| 参数 | 值 |
-|------|-----|
-| 主码流 | 2560×1440 @ 15fps, 2Mbps |
-| 子码流 | 1280×720 @ 15fps, 512Kbps |
-| 录像 | 5min 分片，滚动删除 |
-| 夜视 | 照度 < 5lux → IR-CUT night + IR LED |
+## 3. 设备端服务
 
-### 3.2 ai-svc（AI 服务）
-
-**职责**：多模型推理、事件融合、告警决策
+### 3.1 media-svc
 
 ```
-Video frame (720p) ──► 检测流水线 ──► 事件引擎 ──► MQTT publish
-Audio stream     ──► 哭声分类
+Sensor → ISP → VENC ──┬──► SD 卡循环录像 (7×24)
+                      ├──► P2P 直播流（可打码后输出）
+                      └──► 子码流（App 标清/高清/超清）
 ```
 
-**推理流水线（每 200ms 一帧，可配置）**
+| 参数 | 基础版 | Pro 版 |
+|------|--------|--------|
+| 主码流 | 1080p @ 15fps | 4K @ 15fps |
+| 子码流 | 720p | 1080p |
+| 清晰度档位 | 标清 / 高清 / 超清 | 同左 |
+| 录像 | 5min 分片，写满覆盖 | 同左 |
+| 打码 | GPU/ISP overlay 隐私区域 | 同左 |
 
-1. **人体/婴儿检测** — YOLOv5n / PP-YOLOE-s（RKNN）
-2. **姿态/遮脸** — 关键点模型，判断口鼻遮挡
-3. **运动分析** — 帧差 + 检测框位移
-4. **哭声分类** — YAMNet / 自研 CNN on audio chunk (1s)
+### 3.2 ai-svc（全本地 — 对齐 SIMNET 思路）
 
-**事件融合规则**
+**看护模式状态机**
 
 ```
-IF 遮脸置信度 > 0.8 持续 3s → EVENT_FACE_COVERED (紧急)
-IF 哭声置信度 > 0.75 持续 2s → EVENT_CRYING (重要)
-IF 检测框离开安全多边形 → EVENT_ZONE_EXIT (重要)
-IF 5min 无运动 AND 非睡眠时段 → EVENT_NO_MOTION (提示)
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│ 睡眠看护模式  │   │ 客厅看护模式  │   │ 分床看护模式  │
+│ 遮脸/趴睡   │   │ 虚拟围栏    │   │ 深度睡眠报告 │
+│ 呼吸/睡眠   │   │ 人形移动    │   │ 醒睡统计    │
+└─────────────┘   └─────────────┘   └─────────────┘
 ```
 
-### 3.3 cloud-svc（连接服务）
+**事件 → 动作**
+
+| 事件 | 本地动作 | 远程 |
+|------|----------|------|
+| 哭声 | 推送 + **自动播放安抚音乐** | 仅 JSON 推送 |
+| 遮脸/趴睡 | 紧急推送 | 仅 JSON 推送 |
+| 越界 | 推送 | 仅 JSON 推送 |
+| 入睡/醒来 | 写 SD 事件索引 + 日报 | 可选推送 |
+
+**固件安全策略**：ai-svc 与 connect-svc 隔离；connect-svc **无读取 SD 视频权限**，仅转发加密 P2P 流。
+
+### 3.3 connect-svc
 
 | 功能 | 说明 |
 |------|------|
-| 配网 | BLE 传 WiFi 凭证 → 连接 MQTT broker |
-| 心跳 | 30s ping，离线标记 |
-| OTA | A/B 分区，签名校验 |
-| 时间同步 | NTP |
-| 远程配置 | 告警阈值、安全区坐标下发 |
+| BLE 配网 | SSID/密码写入，与海马爸比流程一致 |
+| P2P | 局域网优先；跨网 UDP 打洞 + 可选 TURN（不录制） |
+| OTA | 签名校验固件包 |
+| 推送 | 向信令服发送 `{type, ts, device_id}`，**无 clip_url** |
+| 账号 | 1 主 + 5 分享，权限 bitmap 存设备 NV |
 
-### 3.4 device-core
+### 3.4 babycam-core
 
-- 统一配置（JSON / protobuf）
-- 服务守护（systemd / supervisord）
-- 看门狗喂狗
-- 日志 ring buffer（不含视频内容）
+- 三看护模式切换
+- 智能安抚曲目与音量
+- 精彩瞬间索引（Pro：本地合成短视频至 SD）
+- 看门狗 + 72h 稳定性监控
+
+---
 
 ## 4. 移动端 App
 
-### 4.1 页面结构
+### 4.1 页面（对齐海马爸比 App）
 
 ```
 TabBar
-├── 首页（实时预览 + 快捷状态）
-├── 时间线（事件卡片 + 片段回放）
-├── 洞察（睡眠统计，V1.1）
-└── 设置
-    ├── 设备管理
-    ├── 告警策略
-    ├── 安全区域编辑
-    ├── 家庭成员
-    └── 隐私与存储
+├── 看护（实时预览 + 温湿度 + 模式切换）
+├── 时间线（本地事件；回看走 P2P 从 SD 拉流）
+├── 睡眠（日报 / 浅深睡图表）
+├── 相册（精彩瞬间，Pro）
+└── 我的
+    ├── 虚拟围栏编辑
+    ├── 画面打码设置
+    ├── 家庭成员 (1+5)
+    ├── 告警与安抚设置
+    └── 存储卡管理 (FAT32 提示)
 ```
 
 ### 4.2 关键流程
 
-**配网（BLE + WiFi）**
+**配网**
 
 ```
-App ──BLE──► 设备：SSID + password
+App ──BLE──► 设备：WiFi 凭证
 设备 ──WiFi──► 路由器
-设备 ──MQTT──► 云：register(device_id, token)
-App ◄──API── 云：绑定成功
-App ◄─WebRTC─► 设备：开始预览
+App ◄──P2P──► 设备：绑定确认（局域网）
+App ──HTTPS──► 信令服：注册账号（无视频）
 ```
 
-**实时预览**
-
-- 局域网：优先 P2P WebRTC（STUN）
-- 公网：TURN 中继（仅在 P2P 失败时）
-- 子码流默认，双击切主码流
-
-## 5. 云端架构
+**回看（零云存）**
 
 ```
-                    ┌──────────┐
-                    │   CDN    │ (App 静态资源)
-                    └──────────┘
-┌────────┐    ┌─────▼──────────────────────────┐
-│  App   │───►│  API Gateway (HTTPS)           │
-└────────┘    │  auth │ devices │ events │ clips│
-              └─────┬───────────────┬──────────┘
-                    │               │
-              ┌─────▼─────┐   ┌─────▼─────┐
-              │ PostgreSQL│   │   Redis   │
-              └───────────┘   └───────────┘
-                    │
-              ┌─────▼─────┐   ┌───────────┐
-              │ MQTT Broker│◄──│  设备端   │
-              │ (EMQX)    │   └───────────┘
-              └───────────┘
-                    │
-              ┌─────▼─────┐
-              │ OSS       │ 事件 mp4 / 缩略图
-              └───────────┘
+App ──P2P──► 设备：请求 SD 时间段
+设备 ──P2P──► App：H.265 流（从本地 SD 读取）
 ```
 
-**API 示例**
+---
 
-| Method | Path | 说明 |
-|--------|------|------|
-| POST | /v1/auth/login | 用户登录 |
-| POST | /v1/devices/bind | 扫码绑定 |
-| GET | /v1/devices/{id}/events | 事件列表 |
-| GET | /v1/webrtc/offer | WebRTC 信令 |
-| PUT | /v1/devices/{id}/config | 远程配置 |
+## 5. 信令服务（极简）
 
-## 6. 数据模型（核心）
+```
+┌────────┐         ┌─────────────────┐
+│  App   │─HTTPS──►│ auth / bind     │
+└────────┘         │ push relay      │
+                   │ p2p coordination│
+                   └────────┬────────┘
+                            │ JSON only
+                   ┌────────▼────────┐
+                   │  Device         │
+                   └─────────────────┘
+```
+
+**禁止项（代码 + 固件审计）**
+
+- 无 OSS / S3 桶
+- 无 `uploadVideo()` 类 API
+- 抓包测试列入出厂检
+
+---
+
+## 6. 数据模型
 
 ```protobuf
 message DeviceEvent {
-  string event_id = 1;
-  string device_id = 2;
-  EventType type = 3;       // CRYING, FACE_COVERED, MOTION, ...
-  int64 timestamp_ms = 4;
-  float confidence = 5;
-  string clip_url = 6;      // 可选，10s 片段
-  string thumbnail_url = 7;
+  EventType type = 1;       // CRY, FACE_COVER, PRONE, ZONE_EXIT, ...
+  int64 timestamp_ms = 2;
+  float confidence = 3;
+  //  intentionally NO clip_url — 视频只在 SD / P2P
 }
 
 message DeviceConfig {
-  repeated Point safe_zone = 1;
-  AlertPolicy alert_policy = 2;
-  bool night_ir_enabled = 3;
-  int32 cry_sensitivity = 4;  // 1-5
+  CareMode mode = 1;        // SLEEP, LIVING, SEPARATE_BED
+  repeated Point safe_zone = 2;
+  repeated Rect privacy_mask = 3;
+  int32 cry_sensitivity = 4;
+  SoothingConfig soothing = 5;
+  SharePermission share_perms = 6;
 }
 ```
 
-## 7. 安全与隐私
+---
 
-| 措施 | 实现 |
+## 7. iPhone 12 原型 App 架构
+
+| 模块 | 实现 |
 |------|------|
-| 传输 | TLS 1.3（API/MQTT），DTLS（WebRTC） |
-| 存储 | SD 录像 AES 可选加密；云端 SSE |
-| 认证 | JWT + 设备证书（MQTT mTLS） |
-| 最小上传 | 仅告警事件片段，默认 10s |
-| 本地开关 | 「隐私模式」关闭云端，仅 LAN |
-| 合规 | 隐私政策 + 数据删除 API |
+| 采集 | AVFoundation |
+| AI | Core ML（与 T41 模型同结构不同格式） |
+| 存储 | 本地 Documents（模拟 SD） |
+| 连接 | Multipeer / WebRTC LAN |
+| 限制 | 无 940nm 夜视；常插电运行 |
 
-## 8. 仓库结构（建议）
+用于 **算法与 App UI 对齐海马爸比**，再移植到 T41。
+
+---
+
+## 8. 仓库结构
 
 ```
 aicamera/
-├── firmware/           # 设备端 C++ / Buildroot
+├── firmware/           # 君正 T31/T41
+│   ├── babycam-core/
 │   ├── services/
 │   │   ├── media-svc/
 │   │   ├── ai-svc/
-│   │   └── cloud-svc/
-│   ├── hal/
-│   └── board/          # RV1106 板级配置
-├── ai/                 # 模型训练与 RKNN 转换
-│   ├── models/
-│   ├── datasets/
-│   └── tools/
-├── app/                # Flutter 移动端
-├── backend/            # Go API + MQTT
-├── proto/              # 公共 protobuf
-├── docs/               # 设计文档
-└── prototype/          # 树莓派快速验证脚本
+│   │   └── connect-svc/
+│   └── hal/            # ptz, sht30, sd
+├── ai/                 # 训练 → MAGIK / Core ML
+├── app/                # Flutter
+├── signal-server/      # 轻量信令（非 media server）
+├── ios-prototype/      # iPhone 12 验证
+└── docs/
 ```
 
-## 9. 原型轨快速启动（树莓派）
+---
 
-```bash
-# 后续实现
-prototype/
-├── docker-compose.yml  # MQTT + MinIO + API
-├── pi-setup.sh         # 依赖安装
-├── stream.py           # libcamera + RTSP
-└── ai_demo.py          # 哭声/遮脸 demo
-```
+## 9. 性能预算（T41 Pro）
 
-## 10. 性能预算（RV1106）
-
-| 模块 | CPU | NPU | 内存 |
-|------|-----|-----|------|
-| H.265 双码流 | 15% | - | 80MB |
-| AI 4 模型 | 10% | 60% | 120MB |
-| WebRTC | 20% | - | 40MB |
-| 系统 + 其他 | 15% | - | 16MB |
-| **合计** | ~60% | ~60% | ~256MB |
+| 模块 | NPU | 内存 |
+|------|-----|------|
+| 4K 编码 | - | 90MB |
+| 检测+遮脸+趴睡 | 45% | 80MB |
+| 呼吸/睡眠 | 25% | 40MB |
+| 哭声 | CPU | 20MB |
+| P2P + SD | 15% CPU | 50MB |
+| **合计** | ~70% | ~128MB 峰值 |
