@@ -11,8 +11,11 @@ FetchContent_MakeAvailable(nlohmann_json)
 
 add_library(edger_core
   src/config.cpp
+  src/config_reload.cpp
   src/fs.cpp
   src/record_index.cpp
+  src/polygon.cpp
+  src/web_auth.cpp
 )
 
 target_include_directories(edger_core

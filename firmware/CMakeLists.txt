@@ -16,8 +16,8 @@ option(EDGER_BUILD_WEB "Build web server" OFF)
 add_subdirectory(edger-core)
 add_subdirectory(services/media-svc)
 add_subdirectory(services/record-svc)
-add_subdirectory(services/ai-svc)
 add_subdirectory(services/alert-svc)
+add_subdirectory(services/ai-svc)
 
 add_executable(edger-rec-demo apps/demo/main.cpp)
 target_link_libraries(edger-rec-demo PRIVATE edger_core media_svc record_svc ai_svc alert_svc)
@@ -26,7 +26,7 @@ set_target_properties(edger-rec-demo PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-install(TARGETS edger-rec-demo edger-record-svc edger_core media_svc record_svc ai_svc alert_svc
+install(TARGETS edger-rec-demo edger-record-svc edger-ai-svc edger_core media_svc record_svc ai_svc alert_svc
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -36,4 +36,12 @@ if(EDGER_BUILD_TESTS)
   set(EDGER_REPO_ROOT "${CMAKE_SOURCE_DIR}/..")
   enable_testing()
   add_subdirectory(tests)
+endif()
+
+if(EDGER_BUILD_QT)
+  add_subdirectory(apps/qt-config)
+endif()
+
+if(EDGER_BUILD_WEB)
+  add_subdirectory(apps/web-server)
 endif()

@@ -1,7 +1,9 @@
 #include "edger/ai_svc.hpp"
 #include "edger/alert_svc.hpp"
 #include "edger/config.hpp"
+#include "edger/config_reload.hpp"
 #include "edger/media_svc.hpp"
+#include "edger/ai_manager.hpp"
 #include "edger/record_index.hpp"
 #include "edger/record_manager.hpp"
 #include "edger/record_svc.hpp"
@@ -29,7 +31,9 @@ void PrintUsage(const char* argv0) {
       << "  " << argv0 << " [--config PATH] probe [--channel ID]\n"
       << "  " << argv0 << " [--config PATH] record [--channel ID] [--duration SEC]\n"
       << "  " << argv0 << " [--config PATH] record-all [--duration SEC]\n"
-      << "  " << argv0 << " [--config PATH] retention\n";
+      << "  " << argv0 << " [--config PATH] retention\n"
+      << "  " << argv0 << " [--config PATH] ai-watch [--duration SEC]\n"
+      << "  " << argv0 << " [--config PATH] config-reload\n";
 }
 
 bool LoadConfig(int argc, char* argv[], edger::Config* config,
@@ -48,7 +52,8 @@ bool LoadConfig(int argc, char* argv[], edger::Config* config,
       continue;
     }
     if (arg == "summary" || arg == "probe" || arg == "record" ||
-        arg == "record-all" || arg == "retention") {
+        arg == "record-all" || arg == "retention" || arg == "ai-watch" ||
+        arg == "config-reload") {
       *command = arg;
     }
   }
@@ -90,10 +95,20 @@ const edger::ChannelConfig* SelectChannel(const edger::Config& config,
 int CmdSummary(const edger::Config& config) {
   std::cout << "record_root: " << config.app().record_root << '\n'
             << "segment_sec: " << config.app().segment_sec << '\n'
+            << "retention_days: " << config.app().retention_days << '\n'
+            << "max_storage_gb: " << config.app().max_storage_gb << '\n'
             << "channels: " << config.channels().size() << '\n';
   for (const auto& ch : config.channels()) {
     std::cout << "  [" << ch.id << "] " << ch.name << " enabled=" << ch.enabled
               << " url=" << ch.rtsp_url << '\n';
+  }
+
+  const auto& intrusion = config.ai().intrusion;
+  std::cout << "intrusion_enabled: " << intrusion.enabled << '\n'
+            << "intrusion_channel: " << intrusion.channel_id << '\n'
+            << "polygon_points: " << intrusion.polygon.size() << '\n';
+  for (const auto& [x, y] : intrusion.polygon) {
+    std::cout << "polygon: " << x << ',' << y << '\n';
   }
   return 0;
 }
@@ -210,6 +225,37 @@ int CmdRetention(const edger::Config& config) {
   return 0;
 }
 
+int CmdAiWatch(const edger::Config& config, int argc, char* argv[]) {
+  const int duration = ParseDuration(argc, argv);
+  if (duration <= 0) {
+    std::cerr << "ai-watch requires --duration SEC\n";
+    return 1;
+  }
+
+  edger::AiManager manager(config);
+  if (!manager.Start(duration)) {
+    std::cerr << "ai-watch start failed\n";
+    return 1;
+  }
+
+  manager.Wait();
+  manager.Stop();
+
+  std::cout << "ai-watch done, alerts_sent=" << manager.alerts_sent() << '\n';
+  return manager.alerts_sent() > 0 ? 0 : 1;
+}
+
+int CmdConfigReload(const std::string& config_path) {
+  if (!edger::ConfigReload::Notify(config_path)) {
+    std::cerr << "config-reload notify failed\n";
+    return 1;
+  }
+
+  std::cout << "reload_generation="
+            << edger::ConfigReload::ReadGeneration(config_path) << '\n';
+  return 0;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -234,6 +280,12 @@ int main(int argc, char* argv[]) {
   }
   if (command == "retention") {
     return CmdRetention(config);
+  }
+  if (command == "ai-watch") {
+    return CmdAiWatch(config, argc, argv);
+  }
+  if (command == "config-reload") {
+    return CmdConfigReload(config_path);
   }
 
   PrintUsage(argv[0]);

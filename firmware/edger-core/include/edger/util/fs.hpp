@@ -16,5 +16,7 @@ std::string DateDirectoryName();
 std::string DateDirectoryOffset(int day_offset);
 std::vector<std::string> ListFilesRecursive(const std::string& root,
                                             const std::string& extension);
+bool IsSubPath(const std::string& root, const std::string& path);
+std::string RelativePath(const std::string& root, const std::string& path);
 
 }  // namespace edger::util

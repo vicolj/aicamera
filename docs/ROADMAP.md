@@ -49,21 +49,25 @@
 
 ## Week 3 — AI 告警
 
-- [ ] `ai-svc` 区域入侵 v0（x86 ONNX 或 OpenCV MOG 占位）
-- [ ] ROI 多边形配置
-- [ ] `alert-svc` HTTP Webhook
-- [ ] 事件去重（同通道 10s 内合并）
+- [x] `ai-svc` 区域入侵 v0（帧差 + ROI）
+- [x] ROI 多边形配置
+- [x] `alert-svc` HTTP Webhook
+- [x] 事件去重（同通道 cooldown）
 
-**产出**：入侵触发 Webhook 可在 curl 看到
+**测试**：`Week3*` 单测 + `./scripts/test-week3-integration.sh`（已通过）
+
+**产出**：入侵触发 Webhook，curl/日志可见 JSON
 
 ---
 
 ## Week 4 — Qt 配置
 
-- [ ] 通道列表（URL、启用）
-- [ ] 录像保留天数 / 容量上限
-- [ ] 告警区域画框（QGraphicsView）
-- [ ] 写回 config.json 并通知 edger-core reload
+- [x] 通道列表（URL、启用）
+- [x] 录像保留天数 / 容量上限
+- [x] 告警区域画框（QGraphicsView）
+- [x] 写回 config.json 并通知 edger-core reload
+
+**测试**：`Week4*` 单测 + `./scripts/test-week4-integration.sh`
 
 **产出**：Qt 改参后 AI 框生效
 
@@ -71,10 +75,12 @@
 
 ## Week 5 — Web 回放
 
-- [ ] `web-server` 列出录像片段
-- [ ] 按时间范围查询 API
-- [ ] 浏览器播放 MP4 或 HLS
-- [ ] 简单登录（token 或 basic auth）
+- [x] `web-server` 列出录像片段
+- [x] 按时间范围查询 API
+- [x] 浏览器播放 MP4 或 HLS
+- [x] 简单登录（token 或 basic auth）
+
+**测试**：`Week5*` 单测 + `./scripts/test-week5-integration.sh`
 
 **产出**：局域网浏览器可回放
 
@@ -82,10 +88,12 @@
 
 ## Week 6 — 打包与稳定性
 
-- [ ] 统一 `edger-rec.target` 启停
-- [ ] 日志轮转
-- [ ] 异常自动重启（systemd Restart=）
-- [ ] x86 一键安装脚本
+- [x] 统一 `edger-rec.target` 启停
+- [x] 日志轮转
+- [x] 异常自动重启（systemd Restart=）
+- [x] x86 一键安装脚本
+
+**测试**：`./scripts/test-week6-integration.sh`
 
 **产出**：重启后 4 路自动恢复
 

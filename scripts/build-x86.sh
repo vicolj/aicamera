@@ -7,7 +7,9 @@ BUILD_DIR="${ROOT}/build/x86"
 mkdir -p "${BUILD_DIR}"
 cmake -S "${ROOT}/firmware" -B "${BUILD_DIR}" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DEDGER_BOARD=x86
+  -DEDGER_BOARD=x86 \
+  -DEDGER_BUILD_QT=OFF \
+  -DEDGER_BUILD_WEB=OFF
 
 cmake --build "${BUILD_DIR}" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 

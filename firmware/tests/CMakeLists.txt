@@ -17,12 +17,21 @@ add_executable(edger_tests
   test_week2_index.cpp
   test_week2_retention.cpp
   test_week2_record_options.cpp
+  test_week3_polygon.cpp
+  test_week3_intrusion.cpp
+  test_week3_alert.cpp
+  test_week4_config_edit.cpp
+  test_week4_reload.cpp
+  test_week5_record_query.cpp
+  test_week5_web_auth.cpp
 )
 
 target_link_libraries(edger_tests
   PRIVATE
     edger_core
     record_svc
+    ai_svc
+    alert_svc
     GTest::gtest_main
 )
 

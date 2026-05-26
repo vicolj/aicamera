@@ -47,6 +47,7 @@ bool Config::Load(const std::string& path) {
     app_.record_root = app.value("record_root", app_.record_root);
     app_.max_channels = app.value("max_channels", app_.max_channels);
     app_.retention_days = app.value("retention_days", app_.retention_days);
+    app_.max_storage_gb = app.value("max_storage_gb", app_.max_storage_gb);
     app_.segment_sec = app.value("segment_sec", app_.segment_sec);
   }
 
@@ -72,6 +73,14 @@ bool Config::Load(const std::string& path) {
     ai_.intrusion = ParseIntrusion(root["ai"]["intrusion"]);
   }
 
+  if (root.contains("web")) {
+    const auto& web = root["web"];
+    web_.enabled = web.value("enabled", web_.enabled);
+    web_.listen_host = web.value("listen_host", web_.listen_host);
+    web_.port = web.value("port", web_.port);
+    web_.auth_token = web.value("auth_token", web_.auth_token);
+  }
+
   return true;
 }
 
@@ -81,6 +90,7 @@ bool Config::Save(const std::string& path) const {
       {"record_root", app_.record_root},
       {"max_channels", app_.max_channels},
       {"retention_days", app_.retention_days},
+      {"max_storage_gb", app_.max_storage_gb},
       {"segment_sec", app_.segment_sec},
   };
 
@@ -104,6 +114,11 @@ bool Config::Save(const std::string& path) const {
                  {{"enabled", ai_.intrusion.enabled},
                   {"channel_id", ai_.intrusion.channel_id},
                   {"polygon", polygon}}}};
+
+  root["web"] = {{"enabled", web_.enabled},
+                 {"listen_host", web_.listen_host},
+                 {"port", web_.port},
+                 {"auth_token", web_.auth_token}};
 
   const auto slash = path.find_last_of('/');
   if (slash != std::string::npos) {

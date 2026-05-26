@@ -42,6 +42,15 @@ sudo apt-get install -y build-essential cmake pkg-config \
 
 # 录播 60 秒
 ./build/x86/bin/edger-rec-demo --config config/example.json record --duration 60
+
+# AI 入侵检测 + Webhook（需可用视频源）
+./build/x86/bin/edger-rec-demo --config config/example.json ai-watch --duration 10
+
+# Qt 配置工具（需先 ./scripts/build-qt-x86.sh）
+./build/x86/bin/edger-qt-config --config config/example.json
+
+# Web 回放（需先 ./scripts/build-web-x86.sh）
+./build/x86/bin/edger-web-server --config config/example.json
 ```
 
 RV1126 交叉编译见 [firmware/board/rv1126/README.md](firmware/board/rv1126/README.md)。
@@ -49,8 +58,15 @@ RV1126 交叉编译见 [firmware/board/rv1126/README.md](firmware/board/rv1126/R
 ## 测试
 
 ```bash
-./scripts/build-x86.sh          # 构建 + 单元测试
+./scripts/build-x86.sh               # 构建 + 单元测试（Week1–4）
 ./scripts/test-week2-integration.sh  # 4 路录播集成测试
+./scripts/test-week3-integration.sh  # AI 入侵 + Webhook 集成测试
+./scripts/test-week4-integration.sh  # 配置读写 + reload 集成测试
+./scripts/test-week5-integration.sh  # Web 回放 API 集成测试
+./scripts/test-week6-integration.sh  # 安装包 + 4 路恢复集成测试
+./scripts/build-qt-x86.sh            # 可选：构建 Qt 配置工具
+./scripts/build-web-x86.sh           # 可选：构建 Web 回放服务
+sudo ./scripts/install-x86.sh      # x86 一键安装 + systemd
 ```
 
 ## 授权（规划）

@@ -114,6 +114,32 @@ std::vector<RecordingEntry> RecordIndex::List(int channel_id,
   return result;
 }
 
+std::vector<RecordingEntry> QueryRecordings(const RecordIndex& index,
+                                            const RecordingQuery& query) {
+  std::vector<RecordingEntry> result;
+  for (const auto& entry : index.All()) {
+    if (query.channel_id >= 0 && entry.channel_id != query.channel_id) {
+      continue;
+    }
+    if (!query.date.empty() && entry.date != query.date) {
+      continue;
+    }
+    if (query.from_unix > 0 && entry.created_at_unix < query.from_unix) {
+      continue;
+    }
+    if (query.to_unix > 0 && entry.created_at_unix > query.to_unix) {
+      continue;
+    }
+    result.push_back(entry);
+  }
+
+  std::sort(result.begin(), result.end(),
+            [](const RecordingEntry& a, const RecordingEntry& b) {
+              return a.created_at_unix > b.created_at_unix;
+            });
+  return result;
+}
+
 RetentionResult ApplyRetention(const std::string& record_root,
                                const RetentionPolicy& policy,
                                RecordIndex* index) {

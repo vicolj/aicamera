@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <cstring>
+#include <limits.h>
 
 namespace edger::util {
 
@@ -143,6 +145,52 @@ std::vector<std::string> ListFilesRecursive(const std::string& root,
   AppendFilesRecursive(root, extension, &files);
   std::sort(files.begin(), files.end());
   return files;
+}
+
+bool IsSubPath(const std::string& root, const std::string& path) {
+  if (root.empty() || path.empty()) {
+    return false;
+  }
+
+  char root_buf[PATH_MAX];
+  char path_buf[PATH_MAX];
+  if (realpath(root.c_str(), root_buf) == nullptr) {
+    return false;
+  }
+  if (realpath(path.c_str(), path_buf) == nullptr) {
+    return false;
+  }
+
+  std::string root_real(root_buf);
+  std::string path_real(path_buf);
+  if (path_real.size() < root_real.size()) {
+    return false;
+  }
+  if (path_real.compare(0, root_real.size(), root_real) != 0) {
+    return false;
+  }
+  return path_real.size() == root_real.size() || path_real[root_real.size()] == '/';
+}
+
+std::string RelativePath(const std::string& root, const std::string& path) {
+  char root_buf[PATH_MAX];
+  char path_buf[PATH_MAX];
+  if (realpath(root.c_str(), root_buf) == nullptr) {
+    return "";
+  }
+  if (realpath(path.c_str(), path_buf) == nullptr) {
+    return "";
+  }
+
+  std::string root_real(root_buf);
+  std::string path_real(path_buf);
+  if (!IsSubPath(root_real, path_real)) {
+    return "";
+  }
+  if (path_real.size() == root_real.size()) {
+    return "";
+  }
+  return path_real.substr(root_real.size() + 1);
 }
 
 }  // namespace edger::util

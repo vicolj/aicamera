@@ -28,3 +28,24 @@ jobs:
           sudo apt-get install -y ffmpeg python3
           chmod +x scripts/test-week2-integration.sh
           ./scripts/test-week2-integration.sh
+
+      - name: Week3 integration test
+        run: |
+          chmod +x scripts/test-week3-integration.sh
+          ./scripts/test-week3-integration.sh
+
+      - name: Week4 integration test
+        run: |
+          chmod +x scripts/test-week4-integration.sh
+          ./scripts/test-week4-integration.sh
+
+      - name: Week5 integration test
+        run: |
+          sudo apt-get install -y curl ffmpeg
+          chmod +x scripts/test-week5-integration.sh
+          ./scripts/test-week5-integration.sh
+
+      - name: Week6 integration test
+        run: |
+          chmod +x scripts/test-week6-integration.sh
+          ./scripts/test-week6-integration.sh

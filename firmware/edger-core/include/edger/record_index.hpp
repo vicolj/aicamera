@@ -44,6 +44,16 @@ struct RetentionResult {
   int removed_index_entries = 0;
 };
 
+struct RecordingQuery {
+  int channel_id = -1;
+  std::int64_t from_unix = 0;
+  std::int64_t to_unix = 0;
+  std::string date;
+};
+
+std::vector<RecordingEntry> QueryRecordings(const RecordIndex& index,
+                                            const RecordingQuery& query);
+
 RetentionResult ApplyRetention(const std::string& record_root,
                                const RetentionPolicy& policy,
                                RecordIndex* index);
