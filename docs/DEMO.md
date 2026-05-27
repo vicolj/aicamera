@@ -1,6 +1,30 @@
 # EdgeRec Alert — 5 分钟试用演示
 
-> 环境：Ubuntu 22.04 / WSL2，已安装 `ffmpeg`
+> 最快方式：**Docker 一键演示**（见下方第 0 节）
+
+## 0. Docker 一键演示（推荐）
+
+```bash
+git clone https://github.com/vicolj/edger-rec.git
+cd edger-rec
+docker compose up -d --build
+```
+
+浏览器打开 **http://localhost:8080/**，Token：`edger-demo`
+
+离线导入：
+
+```bash
+./scripts/docker-save.sh          # 生成 edger-rec-demo.tar
+docker load -i edger-rec-demo.tar
+docker run -d -p 8080:8080 -p 18080:18080 -v edger-data:/data edger-rec:demo
+```
+
+详见 [docker/README.md](../docker/README.md)
+
+---
+
+> 本地编译环境：Ubuntu 22.04 / WSL2，已安装 `ffmpeg`
 
 ## 1. 获取代码
 

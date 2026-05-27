@@ -1,0 +1,11 @@
+build/
+recordings/
+recordings-test/
+.git/
+.github/
+.cursor/
+*.mp4
+*.tar
+*.log
+.idea/
+.vscode/

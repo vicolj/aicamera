@@ -1,6 +1,7 @@
 #include "web_server.hpp"
 
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -40,6 +41,9 @@ int main(int argc, char* argv[]) {
   edger::WebServer::Options options = edger::BuildWebOptions(config);
   if (port_override > 0) {
     options.port = port_override;
+  }
+  if (const char* static_dir = std::getenv("EDGER_WEB_STATIC_DIR")) {
+    options.static_dir = static_dir;
   }
 
   std::signal(SIGINT, HandleSignal);

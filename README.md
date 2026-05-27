@@ -55,6 +55,15 @@ sudo apt-get install -y build-essential cmake pkg-config \
 
 RV1126 交叉编译见 [firmware/board/rv1126/README.md](firmware/board/rv1126/README.md)。
 
+## Docker 演示
+
+```bash
+docker compose up -d --build
+# http://localhost:8080  Token: edger-demo
+```
+
+详见 [docker/README.md](docker/README.md)。
+
 ## 测试
 
 ```bash
